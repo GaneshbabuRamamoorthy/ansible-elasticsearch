@@ -82,9 +82,11 @@ fi
 
 # Define other required variables
 PID_FILE="$PID_DIR/$NAME.pid"
+ES_JVM_OPTIONS="$CONF_DIR/jvm.options"
 DAEMON={{es_home}}/bin/elasticsearch
 DAEMON_OPTS="-d -p $PID_FILE -Edefault.path.logs=$LOG_DIR -Edefault.path.data=$DATA_DIR -Edefault.path.conf=$CONF_DIR"
 
+export ES_JVM_OPTIONS
 export ES_JAVA_OPTS
 export JAVA_HOME
 export ES_INCLUDE
