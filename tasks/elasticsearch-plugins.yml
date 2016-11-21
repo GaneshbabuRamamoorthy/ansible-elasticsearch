@@ -7,11 +7,13 @@
 
 - set_fact: list_command="list"
 
+- set_fact: es_plugins_command="{{es_home}}/bin/elasticsearch-plugin"
+
 - set_fact: list_command="--list"
   when: es_version | version_compare('2.0', '<')
 
 #List currently installed plugins - ignore xpack if > v 2.0
-- shell: "{{es_home}}/bin/plugin {{list_command}} | sed -n '1!p' | cut -d '-' -f2-{% if es_version | version_compare('2.0', '>') %} | grep -vE '{{supported_xpack_features | join('|')}}|license'{% endif %}"
+- shell: "{{ es_plugins_command }} {{list_command}} | sed -n '1!p' | cut -d '-' -f2-{% if es_version | version_compare('2.0', '>') %} | grep -vE '{{supported_xpack_features | join('|')}}|license'{% endif %}"
   register: installed_plugins
   failed_when: "'ERROR' in installed_plugins.stdout"
   changed_when: False
@@ -22,7 +24,7 @@
 
 #This needs to removes any currently installed plugins
 - name: Remove elasticsearch plugins
-  command: "{{es_home}}/bin/plugin remove {{item}} --silent"
+  command: "{{ es_plugins_command }} remove {{item}} --silent"
   ignore_errors: yes
   with_items: "{{ installed_plugins.stdout_lines | default([]) }}"
   when: es_plugins_reinstall and installed_plugins.stdout_lines | length > 0 and not 'No plugin detected' in installed_plugins.stdout_lines[0]
@@ -35,8 +37,9 @@
 - name: Install elasticsearch plugins
   #debug: var=item
   command: >
-    {{es_home}}/bin/plugin install {{ item.plugin }}{% if item.version is defined and item.version != '' %}/{{ item.version }}{% endif %} {% if item.proxy_host is defined and item.proxy_host != '' and item.proxy_port is defined and item.proxy_port != ''%} -DproxyHost={{ item.proxy_host }} -DproxyPort={{ item.proxy_port }} {% elif es_proxy_host is defined and es_proxy_host != '' %} -DproxyHost={{ es_proxy_host }} -DproxyPort={{ es_proxy_port }} {% endif %} --silent
+    {{ es_plugins_command }} install {{ item.plugin }}{% if item.version is defined and item.version != '' %}/{{ item.version }}{% endif %} {% if item.proxy_host is defined and item.proxy_host != '' and item.proxy_port is defined and item.proxy_port != ''%} -DproxyHost={{ item.proxy_host }} -DproxyPort={{ item.proxy_port }} {% elif es_proxy_host is defined and es_proxy_host != '' %} -DproxyHost={{ es_proxy_host }} -DproxyPort={{ es_proxy_port }} {% endif %} --silent
   register: plugin_installed
+  ignore_errors: yes
   failed_when: "'ERROR' in plugin_installed.stdout"
   changed_when: plugin_installed.rc == 0
   with_items: "{{ es_plugins | default([]) }}"
