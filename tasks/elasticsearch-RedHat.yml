@@ -24,6 +24,16 @@
   when: not es_use_repository
   register: elasticsearch_install_from_package
 
+- name: RedHat - Add EPEL repository
+  yum_repository:
+    name: epel
+    description: EPEL YUM repo
+    baseurl: http://dl.fedoraproject.org/pub/epel/$releasever/$basearch/
+    gpgcheck: no
+
+- name: RedHat - Install other library
+  yum: name=python-pip
+
 # ansible uri module requires python-httplib2
 - name: python-httplib2
   pip: name=httplib2

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # elasticsearch <summary>
 #
@@ -34,17 +34,31 @@ fi
 # Sets the default values for elasticsearch variables used in this script
 ES_USER="elasticsearch"
 ES_GROUP="elasticsearch"
-ES_HOME="/usr/share/elasticsearch"
-MAX_OPEN_FILES=65535
-MAX_MAP_COUNT=262144
-LOG_DIR="/var/log/elasticsearch"
-DATA_DIR="/var/lib/elasticsearch"
-CONF_DIR="/etc/elasticsearch"
+# Run Elasticsearch as this user ID and group ID
+ES_USER={{es_user}}
+ES_GROUP={{es_group}}
 
-PID_DIR="/var/run/elasticsearch"
+# Directory where the Elasticsearch binary distribution resides
+# ES_HOME="/usr/share/elasticsearch"
+ES_HOME={{es_home}}
+
+MAX_OPEN_FILES=65536
+MAX_MAP_COUNT=262144
+
+# Elasticsearch log directory
+LOG_DIR={{log_dir}}
+
+# Elasticsearch data directory
+DATA_DIR={{ data_dirs | array_to_str }}
+
+# Elasticsearch configuration directory
+CONF_DIR={{ conf_dir }}
+
+# Elasticsearch PID file directory
+PID_DIR={{ pid_dir }}
 
 # Source the default env file
-ES_ENV_FILE="{{instance_default_file}}"
+ES_ENV_FILE={{ instance_default_file }}
 if [ -f "$ES_ENV_FILE" ]; then
     . "$ES_ENV_FILE"
 fi
@@ -58,20 +72,24 @@ fi
 exec="$ES_HOME/bin/elasticsearch"
 prog="elasticsearch"
 pidfile="$PID_DIR/${prog}.pid"
+ES_JVM_OPTIONS="$CONF_DIR/jvm.options"
 
-export ES_HEAP_SIZE
-export ES_HEAP_NEWSIZE
-export ES_DIRECT_SIZE
 export ES_JAVA_OPTS
-export ES_GC_LOG_FILE
-export ES_STARTUP_SLEEP_TIME
 export JAVA_HOME
+export ES_INCLUDE
+export ES_JVM_OPTIONS
+export ES_STARTUP_SLEEP_TIME
 
 lockfile=/var/lock/subsys/$prog
 
 # backwards compatibility for old config sysconfig files, pre 0.90.1
 if [ -n $USER ] && [ -z $ES_USER ] ; then
    ES_USER=$USER
+fi
+
+if [ ! -x "$exec" ]; then
+    echo "The elasticsearch startup script does not exists or it is not executable, tried: $exec"
+    exit 1
 fi
 
 checkJava() {
@@ -90,10 +108,7 @@ checkJava() {
 start() {
     checkJava
     [ -x $exec ] || exit 5
-    if [ -n "$MAX_LOCKED_MEMORY" -a -z "$ES_HEAP_SIZE" ]; then
-        echo "MAX_LOCKED_MEMORY is set - ES_HEAP_SIZE must also be set"
-        return 7
-    fi
+
     if [ -n "$MAX_OPEN_FILES" ]; then
         ulimit -n $MAX_OPEN_FILES
     fi
@@ -103,7 +118,6 @@ start() {
     if [ -n "$MAX_MAP_COUNT" -a -f /proc/sys/vm/max_map_count ]; then
         sysctl -q -w vm.max_map_count=$MAX_MAP_COUNT
     fi
-    export ES_GC_LOG_FILE
 
     # Ensure that the PID_DIR exists (it is cleaned at OS startup time)
     if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
@@ -130,7 +144,7 @@ start() {
 stop() {
     echo -n $"Stopping $prog: "
     # stop it here, often "killproc $prog"
-    killproc -p $pidfile -d 86400 $prog
+    killproc -p $pidfile -d ${stopping.timeout} $prog
     retval=$?
     echo
     [ $retval -eq 0 ] && rm -f $lockfile
